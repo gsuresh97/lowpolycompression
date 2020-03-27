@@ -122,3 +122,6 @@ class PolyImg:
   def show_low_poly(self):
     cv.imshow("Low Poly image", self.get_low_poly())
     cv.waitKey(0)
+
+  def save_low_poly(self, path):
+    cv.imwrite(path, self.get_low_poly() * 255)
