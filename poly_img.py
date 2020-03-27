@@ -3,6 +3,7 @@ import numpy as np
 from scipy import signal
 from matplotlib import pyplot as plt
 from scipy.spatial import Delaunay
+import math
 
 class PolyImg:
   def __init__(self, path, blur, max_points, rate):
@@ -28,11 +29,12 @@ class PolyImg:
     return edges
 
   def _get_nodes(self, img):
+    # Find edges, and threshold them
     nodes_convolution = signal.convolve2d(img, np.ones((3, 3))/9)
-    sparse_nodes = nodes_convolution > 0.3
+    sparse_nodes = nodes_convolution > math.ceil(np.mean(nodes_convolution))
     nodes = np.transpose(sparse_nodes.nonzero())
-    n = sparse_nodes.nonzero()
-    # nodes.T[[0, 1]] = nodes.T[[1, 0]]
+    
+    # Randomly sample edge pixles to get nodes
     if self.max_points > len(nodes):
       selected_idx = np.random.choice(len(nodes), 
                                       size=len(nodes), 
@@ -41,8 +43,14 @@ class PolyImg:
       selected_idx = np.random.choice(len(nodes), 
                                       size=self.max_points,
                                       replace=False)
-    # img_dimensions = self.orig.shape
+    img_dimensions = self.orig.shape
     nodes = nodes[selected_idx, :]
+    
+    # Add corners
+    nodes = np.append(nodes, [[0, 0]], axis=0)
+    nodes = np.append(nodes, [[img_dimensions[0], 0]], axis=0)
+    nodes = np.append(nodes, [[0, img_dimensions[1]]], axis=0)
+    nodes = np.append(nodes, [[img_dimensions[0], img_dimensions[1]]], axis=0)
     return nodes
 
   def _create_triangles(self, nodes):
@@ -50,6 +58,7 @@ class PolyImg:
     return tri
 
   def _draw_poly_lines(self, tri):
+    # Draw only the lines of the poly image
     points = tri.points
     simplices = tri.simplices
     all_poly = []
@@ -64,6 +73,7 @@ class PolyImg:
                 (0, 0, 1))
 
   def _draw_poly_points(self, tri):
+    # Draw only the vertices of the poly image
     points = tri.points
     for point in points:
       cv.circle(self.low_poly_img, 
@@ -78,7 +88,6 @@ class PolyImg:
     for simplex in simplices:
       tri_points = []
       for vertex in simplex:
-        # print(points[vertex])
         tri_points.append([int(points[vertex][1]), int(points[vertex][0])])
       centroid = (
         int((tri_points[0][1] + tri_points[1][1] + tri_points[2][1])/3),
@@ -90,12 +99,9 @@ class PolyImg:
         centroid = (centroid[0], self.low_poly_img.shape[1]-1)
       
       color = tuple([x/255 for x in self.orig[centroid]])
-      # print(f'Original color: {self.orig[centroid]}, Color Value: {color}')
-      # print(tri_points)
       cv.fillPoly(self.low_poly_img, 
                   np.array([tri_points], dtype=np.int32), 
                   color)
-      # break
 
   def plot_nodes(self):
     pp_img = self._preprocess(self.orig)
@@ -112,7 +118,6 @@ class PolyImg:
     triangles = self._create_triangles(nodes)
     self._draw_poly_img(triangles)
     return self.low_poly_img
-    # return pp_img
   
   def show_low_poly(self):
     cv.imshow("Low Poly image", self.get_low_poly())
